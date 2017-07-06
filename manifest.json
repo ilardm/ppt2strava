@@ -1,0 +1,25 @@
+{
+    "manifest_version": 2,
+
+    "name": "PPT2Strava",
+    "description": "Transfer activity from polarpersonaltrainer.com to strava",
+    "version": "1.0",
+    "icons": {
+        "128": "icon-128.png"
+    },
+
+    "browser_action": {
+        "default_icon": "icon.png",
+        "default_popup": "popup.html"
+    },
+    "permissions": [
+        "activeTab",
+        "https://ajax.googleapis.com/"
+    ],
+    "content_scripts": [
+        {
+            "matches": ["https://polarpersonaltrainer.com/user/index.ftl"],
+            "js": ["content.js"]
+        }
+    ]
+}
