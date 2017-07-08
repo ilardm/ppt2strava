@@ -24,13 +24,13 @@ function renderStatus(statusText) {
 }
 
 
-function queryTracks(callback) {
+function _sendContentScriptMessage(action, args, callback) {
   chrome.tabs.query(
     {active: true, currentWindow: true},
     function(tabs) {
       chrome.tabs.sendMessage(
         tabs[0].id,
-        {action: 'queryTracks'},
+        {action: action, args: args},
         function(response) {
           if (!!callback) {
             callback(response);
@@ -39,6 +39,10 @@ function queryTracks(callback) {
       );
     }
   );
+}
+
+function queryTracks(callback) {
+  return _sendContentScriptMessage('queryTracks', {}, callback);
 }
 
 
@@ -50,16 +54,24 @@ function displayTracks(tracks) {
 
     // TODO: use template after track details retrieving
     var container = document.createElement('div');
-    retrieveTrackDetails(track, container)
-    container.innerText = track['title'];
+
+    var trackTitle = document.createElement('span');
+    trackTitle.innerText = track['title'];
+    container.appendChild(trackTitle);
+
+    var transferBtn = document.createElement('input');
+    transferBtn.setAttribute('type', 'button');
+    transferBtn.setAttribute('value', 'Transfer');
+    transferBtn.addEventListener('click', onTransferBtnClick.bind(null, id));
+    container.appendChild(transferBtn);
 
     tracksContainer.appendChild(container);
   }
 }
 
 
-function retrieveTrackDetails(track, container) {
-  // TODO: implement
+function onTransferBtnClick(trackId, ev) {
+  _sendContentScriptMessage('retrieveTrack', {trackId: trackId}, null);
 }
 
 

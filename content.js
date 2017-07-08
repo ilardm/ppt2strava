@@ -50,10 +50,54 @@ function queryTracks(target) {
 }
 
 
+function retrieveTrackGpx(trackId, onSuccess, onFailure) {
+  var request = new XMLHttpRequest();
+
+  request.addEventListener('error', function(ev) {
+    if (!!onFailure) {
+      onFailure(ev);
+    }
+  });
+  request.addEventListener('abort', function(ev) {
+    if (!!onFailure) {
+      onFailure(ev);
+    }
+  });
+  request.addEventListener('load', function(ev) {
+    if (ev.target.status == 200) {
+      if (!!onSuccess) {
+        onSuccess(ev.target.responseXML);
+      }
+    } else {
+      if (!!onFailure) {
+        onFailure(ev);
+      }
+    }
+  });
+
+  var formData = new FormData();
+  formData.set('.action', 'gpx');
+  formData.set('items.0.item', trackId);
+  formData.set('items.0.itemType', 'OptimizedExercise');
+
+  request.open('POST', 'https://polarpersonaltrainer.com/user/calendar/index.gpx');
+  request.send(formData);
+}
+
+
+function retrieveTrack(argsObj) {
+  retrieveTrackGpx(argsObj.trackId, function onTrackGpxRetrieved(gpx) {
+    console.log('gpx retrieved', gpx);
+  });
+}
+
+
 chrome.runtime.onMessage.addListener(
   function(request, sender, sendResponse) {
     if (request.action == 'queryTracks') {
       sendResponse(queryTracks(document));
+    } else if (request.action == 'retrieveTrack') {
+      retrieveTrack(request.args);
     }
   }
 );
