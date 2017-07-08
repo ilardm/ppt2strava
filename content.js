@@ -50,7 +50,7 @@ function queryTracks(target) {
 }
 
 
-function retrieveTrackGpx(trackId, onSuccess, onFailure) {
+function _performRequest(method, url, data, onSuccess, onFailure) {
   var request = new XMLHttpRequest();
 
   request.addEventListener('error', function(ev) {
@@ -75,19 +75,50 @@ function retrieveTrackGpx(trackId, onSuccess, onFailure) {
     }
   });
 
+  request.open(method, url);
+  request.send(data);
+}
+
+
+function retrieveTrackGpx(trackId, onSuccess, onFailure) {
   var formData = new FormData();
   formData.set('.action', 'gpx');
   formData.set('items.0.item', trackId);
   formData.set('items.0.itemType', 'OptimizedExercise');
 
-  request.open('POST', 'https://polarpersonaltrainer.com/user/calendar/index.gpx');
-  request.send(formData);
+  _performRequest(
+    'POST', 'https://polarpersonaltrainer.com/user/calendar/index.gpx', formData,
+    onSuccess, onFailure
+  );
+}
+
+
+function retrieveExercise(trackId, onSuccess, onFailure) {
+  var url = 'https://polarpersonaltrainer.com/user/calendar/item/exercise.xml';
+  url += '?id=' + escape(trackId);
+
+  _performRequest(
+    'GET', url, null,
+    onSuccess, onFailure
+  );
+}
+
+
+function mergeGpxExercise(gpx, exercise) {
+
 }
 
 
 function retrieveTrack(argsObj) {
   retrieveTrackGpx(argsObj.trackId, function onTrackGpxRetrieved(gpx) {
     console.log('gpx retrieved', gpx);
+
+    retrieveExercise(argsObj.trackId, function onExerciseRetrieved(exercise) {
+      console.log('exercise retrieved', exercise);
+
+      var merged = mergeGpxExercise(gpx, exercise);
+      console.log('merged gpx-exercise', merged);
+    })
   });
 }
 
