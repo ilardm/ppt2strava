@@ -18,7 +18,10 @@
     ],
     "content_scripts": [
         {
-            "matches": ["https://polarpersonaltrainer.com/user/index.ftl"],
+            "matches": [
+                "https://polarpersonaltrainer.com/user/index.ftl",
+                "https://polarpersonaltrainer.com/user/calendar/item/analyze.ftl*"
+            ],
             "js": ["content.js"]
         }
     ]

@@ -11,10 +11,25 @@ function _parseSearch(search) {
 
 
 function queryTracks(target) {
+  if (window.location.pathname == '/user/calendar/item/analyze.ftl') {
+    var search = _parseSearch(window.location.search);
+    var trackId = search['id'];
+    var title = document.querySelector('.primary-exe-topic span span span');
+
+    var ret = {};
+    ret[trackId] = {
+      id: trackId,
+      link: window.location.href,
+      title: title.innerText,
+    };
+
+    return ret;
+  }
+
   var links = target.querySelectorAll('.dashboard-container a.view-link');
 
   if (links.length == 0) {
-    return {}
+    return {};
   }
 
   var tracks = Array.prototype.reduce.call(links, function map(a, i) {
