@@ -104,8 +104,105 @@ function retrieveExercise(trackId, onSuccess, onFailure) {
 }
 
 
-function mergeGpxExercise(gpx, exercise) {
+var SAMPLES_KEYS = {
+  0: 'hr',
+  1: 'speed',
+  3: 'altitude',
+  10: 'distance',
+}
 
+
+function extractSamples(exercise) {
+  // extract && parse samples
+  var samplesMap = exercise.querySelector('object[name=result] map[name=samples]');
+  var samplesMap = Array.prototype.reduce.call(samplesMap.children, function(map, valueNode) {
+    var key = valueNode.getAttribute('key');
+    key = SAMPLES_KEYS[key];
+    var values = valueNode.innerHTML.split(',');
+    map[key] = values.map(parseFloat);
+    return map;
+  }, {});
+
+  console.log(samplesMap);
+
+  var totalSamples = samplesMap['hr'].length;
+  var samples = [];
+
+  // remap samples
+  for (var i = 0; i < totalSamples; ++i) {
+    var row = {};
+    for (var key in samplesMap) {
+      row[key] = samplesMap[key][i];
+    }
+    samples.push(row);
+  }
+
+  return samples;
+}
+
+function mergeGpxExercise(gpx, exercise) {
+  // work with copy of gpx
+  var gpxClone = gpx.cloneNode(true);
+
+  // fix gpx.metadata.time
+  var metadataTimeNode = gpxClone.querySelector('metadata time');
+  var exerciseTimeNode = exercise.querySelector('object prop[name=time]');
+  metadataTimeNode.innerHTML = exerciseTimeNode.innerHTML;
+
+  var samples = extractSamples(exercise);
+
+  // calculate *real* exercise start:
+  // exerciseTimeNode contains local to device time, which is not
+  // synced with GPS in general case
+  var lastTrkPtTimeNode = gpxClone.querySelector('trkseg:last-child trkpt:last-child time');
+  var sampleTimestampStart = Date.parse(lastTrkPtTimeNode.innerHTML) / 1000;
+  sampleTimestampStart -= samples.length;
+
+  var trkNode = gpxClone.querySelector('trk');
+
+  // merge
+
+  var segments = Array.prototype.map.call(trkNode.children, function(trkseg, sidx) {
+    var points = Array.prototype.map.call(trkseg.children, function(trkpt, pidx) {
+      var ret = trkpt.cloneNode(true);
+
+      var timeNode = ret.querySelector('time');
+      var ptTimestamp = Date.parse(timeNode.innerHTML) / 1000;
+      var sampleIdx = ptTimestamp - sampleTimestampStart;
+
+      var hrSample = samples[sampleIdx-1]['hr'];
+
+      var ext = document.createElement('extensions');
+      var tpx = document.createElement('gpxtpx:TrackPointExtension');
+      var tpxhr = document.createElement('gpxtpx:hr');
+
+      tpxhr.innerHTML = hrSample;
+      tpx.appendChild(tpxhr);
+      ext.appendChild(tpx);
+
+      ret.appendChild(ext);
+
+      return ret;
+    });
+
+    var ret = trkseg.cloneNode();
+
+    for (var i = 0; i < points.length; i++) {
+      ret.appendChild(points[i]);
+    }
+
+    return ret;
+  });
+
+  var trkNodeClone = trkNode.cloneNode();
+
+  for (var i = 0; i < segments.length; i++) {
+    trkNodeClone.appendChild(segments[i]);
+  }
+
+  trkNode.parentNode.replaceChild(trkNodeClone, trkNode);
+
+  return gpxClone;
 }
 
 
