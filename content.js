@@ -202,6 +202,21 @@ function mergeGpxExercise(gpx, exercise) {
 
   trkNode.parentNode.replaceChild(trkNodeClone, trkNode);
 
+  // update schemas
+  var gpxNode = gpxClone.querySelector('gpx');
+  gpxNode.setAttribute('creator', 'ppt2strava crx');
+
+  // cc-cv from strava's exported gpx track
+  var schemaLocation = gpxNode.getAttribute('xsi:schemaLocation');
+  schemaLocation += ['',        // leading space
+                     'http://www.garmin.com/xmlschemas/GpxExtensions/v3',
+                     'http://www.garmin.com/xmlschemas/GpxExtensionsv3.xsd',
+                     'http://www.garmin.com/xmlschemas/TrackPointExtension/v1',
+                     'http://www.garmin.com/xmlschemas/TrackPointExtensionv1.xsd'].join(' ');
+  gpxNode.setAttribute('xsi:schemaLocation', schemaLocation);
+  gpxNode.setAttribute('xmlns:gpxtpx', 'http://www.garmin.com/xmlschemas/TrackPointExtension/v1');
+  gpxNode.setAttribute('xmlns:gpxx', 'http://www.garmin.com/xmlschemas/GpxExtensions/v3');
+
   return gpxClone;
 }
 
