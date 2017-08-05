@@ -173,8 +173,14 @@ function mergeGpxExercise(gpx, exercise) {
       var hrSample = samples[sampleIdx-1]['hr'];
 
       var ext = document.createElement('extensions');
-      var tpx = document.createElement('gpxtpx:TrackPointExtension');
-      var tpxhr = document.createElement('gpxtpx:hr');
+      var tpx = document.createElementNS(
+        'http://www.garmin.com/xmlschemas/TrackPointExtension/v1',
+        'gpxtpx:TrackPointExtension'
+      );
+      var tpxhr = document.createElementNS(
+        'http://www.garmin.com/xmlschemas/TrackPointExtension/v1',
+        'gpxtpx:hr'
+      );
 
       tpxhr.innerHTML = hrSample;
       tpx.appendChild(tpxhr);
