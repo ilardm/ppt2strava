@@ -50,7 +50,9 @@ function queryTracks(target) {
 }
 
 
-function _performRequest(method, url, data, onSuccess, onFailure) {
+function _performRequest(method, url, data, headers, onSuccess, onFailure) {
+  headers = headers || {};
+
   var request = new XMLHttpRequest();
 
   request.addEventListener('error', function(ev) {
@@ -76,7 +78,47 @@ function _performRequest(method, url, data, onSuccess, onFailure) {
   });
 
   request.open(method, url);
+  for (header in headers) {
+    request.setRequestHeader(header, headers[header]);
+  }
   request.send(data);
+}
+
+function _performStravaRequest(method, url, formData, headers, onSuccess, onFailure, retryAuth) {
+  retryAuth = !!retryAuth;
+
+  chrome.storage.local.get('oauth', function(data) {
+    if (chrome.runtime.lastError) {
+      console.error(chrome.runtime.lastError);
+      if (!!retryAuth) {
+        console.log('initialize reauth');
+        // TODO: initialize auth
+      } else {
+        if (!!onFailure) {
+          onFailure();
+        }
+      }
+    }
+
+    headers = headers || {};
+    headers['Authorization'] = 'Bearer ' + data['oauth']['access_token'];
+
+    _performRequest(
+      method, url, formData, headers,
+      onSuccess, function onFailure(ev) {
+        if (ev.target.status == 401) {
+          console.log('unauthorised');
+          if (!!retryAuth) {
+            console.log('initialize reauth');
+            // TODO: initialize auth
+          } else {
+            if (!!onFailure) {
+              onFailure(ev);
+            }
+          }
+        }
+      });
+  });
 }
 
 
@@ -87,7 +129,7 @@ function retrieveTrackGpx(trackId, onSuccess, onFailure) {
   formData.set('items.0.itemType', 'OptimizedExercise');
 
   _performRequest(
-    'POST', 'https://polarpersonaltrainer.com/user/calendar/index.gpx', formData,
+    'POST', 'https://polarpersonaltrainer.com/user/calendar/index.gpx', formData, null,
     onSuccess, onFailure
   );
 }
@@ -98,7 +140,7 @@ function retrieveExercise(trackId, onSuccess, onFailure) {
   url += '?id=' + escape(trackId);
 
   _performRequest(
-    'GET', url, null,
+    'GET', url, null, null,
     onSuccess, onFailure
   );
 }
@@ -250,7 +292,7 @@ function oauth(argsObj, callback) {
   formData.set('code', argsObj['code']);
 
   _performRequest(
-    'POST', 'https://www.strava.com/oauth/token', formData,
+    'POST', 'https://www.strava.com/oauth/token', formData, null,
     function onSuccess(ev) {
       var response = JSON.parse(ev.target.response);
       var access_token = response['access_token'];
@@ -273,44 +315,34 @@ function oauth(argsObj, callback) {
 
 
 function unoauth(argsObj, callback) {
-  chrome.storage.local.get('oauth', function(data) {
-    if (chrome.runtime.lastError) {
-      console.error(chrome.runtime.lastError);
-      return
-    }
+  function onUnauthorised(response, callback) {
+    chrome.storage.local.remove('oauth', function() {
+      if (chrome.runtime.lastError) {
+        console.error(chrome.runtime.lastError);
+        return
+      }
 
-    function onUnauthorised(response, callback) {
-      chrome.storage.local.remove('oauth', function() {
-        if (chrome.runtime.lastError) {
-          console.error(chrome.runtime.lastError);
-          return
-        }
+      console.log('cleader oath data');
+      if (!!callback) {
+        callback(response);
+      }
+    });
+  }
 
-        console.log('cleader oath data');
-        if (!!callback) {
-          callback(response);
-        }
-      });
-    }
+  _performStravaRequest(
+    'POST', 'https://www.strava.com/oauth/deauthorize', null, null,
+    function onSuccess(ev) {
+      var response = JSON.parse(ev.target.response);
 
-    var formData = new FormData();
-    formData.set('access_token', data['oauth']['access_token']);
-
-    _performRequest(
-      'POST', 'https://www.strava.com/oauth/deauthorize', formData,
-      function onSuccess(ev) {
+      onUnauthorised(response, callback);
+    }, function onFailure(ev) {
+      if (ev.target.status == 401) {
         var response = JSON.parse(ev.target.response);
 
         onUnauthorised(response, callback);
-      }, function onFailure(ev) {
-        if (ev.target.status == 401) {
-          var response = JSON.parse(ev.target.response);
-
-          onUnauthorised(response, callback);
-        }
       }
-    );
-  });
+    }
+  );
 };
 
 
