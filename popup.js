@@ -71,7 +71,7 @@ function displayTracks(tracks) {
 
 
 function onTransferBtnClick(trackId, ev) {
-  _sendContentScriptMessage('retrieveTrack', {trackId: trackId}, null);
+  _sendContentScriptMessage('transferTrack', {trackId: trackId}, null);
 }
 
 

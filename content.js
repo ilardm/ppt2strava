@@ -66,7 +66,9 @@ function _performRequest(method, url, data, headers, onSuccess, onFailure) {
     }
   });
   request.addEventListener('load', function(ev) {
-    if (ev.target.status == 200) {
+    var statusFamily = Math.floor(ev.target.status / 100);
+
+    if (statusFamily == 2) {
       if (!!onSuccess) {
         onSuccess(ev);
       }
@@ -269,7 +271,7 @@ function mergeGpxExercise(gpx, exercise) {
 }
 
 
-function retrieveTrack(argsObj) {
+function transferTrack(argsObj) {
   retrieveTrackGpx(argsObj.trackId, function onTrackGpxRetrieved(ev) {
     var gpx = ev.target.responseXML;
     console.log('gpx retrieved', gpx);
@@ -280,8 +282,69 @@ function retrieveTrack(argsObj) {
 
       var merged = mergeGpxExercise(gpx, exercise);
       console.log('merged gpx-exercise', merged);
+
+      uploadTrack(merged);
     })
   });
+}
+
+
+function uploadTrack(track) {
+  var serializer = new XMLSerializer();
+  var trackStr = serializer.serializeToString(track);
+  var trackBlob = new Blob([trackStr], {type: 'text/xml'});
+
+  var formData = new FormData();
+  formData.set('private', 1);
+  formData.set('data_type', 'gpx');
+  formData.set('file', trackBlob, 'track.gpx');
+
+  _performStravaRequest(
+    'POST', 'https://www.strava.com/api/v3/uploads', formData, null,
+    function onSuccess(ev) {
+      var response = JSON.parse(ev.target.response);
+      console.log('uploaded', response);
+
+      if (!!response['error']) {
+        console.error(response['error']);
+        return;
+      }
+
+      pollUpload(response);
+    }, function onFailure(ev) {
+      console.error(ev.target.response);
+    }, true
+  );
+}
+
+function pollUpload(uploadResponse, onSuccess, onFailure) {
+  function _poll(url, onSuccess, onFailure) {
+    _performStravaRequest(
+      'GET', url, null, null,
+      function(ev) {
+        var response = JSON.parse(ev.target.response);
+        console.log('upload status', response);
+        if (!!response['error']) {
+          console.error(response['error']);
+          return;
+        }
+
+        if (!!response['activity_id']) {
+          if (!!onSuccess) {
+            return onSuccess(response);
+          }
+          return;
+        }
+
+        return pollUpload(response);
+      }, onFailure, false
+    )
+  };
+
+  var url = "https://www.strava.com/api/v3/uploads/" + uploadResponse['id'];
+  var boundPoll = _poll.bind(null, url, onSuccess, onFailure);
+
+  window.setTimeout(boundPoll, 3000);
 }
 
 
@@ -350,8 +413,8 @@ chrome.runtime.onMessage.addListener(
   function(request, sender, sendResponse) {
     if (request.action == 'queryTracks') {
       sendResponse(queryTracks(document));
-    } else if (request.action == 'retrieveTrack') {
-      retrieveTrack(request.args);
+    } else if (request.action == 'transferTrack') {
+      transferTrack(request.args);
     } else if (request.action == 'oauth') {
       oauth(request.args, sendResponse);
       // for async sendResponse
