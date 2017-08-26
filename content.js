@@ -66,7 +66,7 @@ function _performRequest(method, url, data, onSuccess, onFailure) {
   request.addEventListener('load', function(ev) {
     if (ev.target.status == 200) {
       if (!!onSuccess) {
-        onSuccess(ev.target.responseXML);
+        onSuccess(ev);
       }
     } else {
       if (!!onFailure) {
@@ -228,10 +228,12 @@ function mergeGpxExercise(gpx, exercise) {
 
 
 function retrieveTrack(argsObj) {
-  retrieveTrackGpx(argsObj.trackId, function onTrackGpxRetrieved(gpx) {
+  retrieveTrackGpx(argsObj.trackId, function onTrackGpxRetrieved(ev) {
+    var gpx = ev.target.responseXML;
     console.log('gpx retrieved', gpx);
 
-    retrieveExercise(argsObj.trackId, function onExerciseRetrieved(exercise) {
+    retrieveExercise(argsObj.trackId, function onExerciseRetrieved(ev) {
+      var exercise = ev.target.responseXML;
       console.log('exercise retrieved', exercise);
 
       var merged = mergeGpxExercise(gpx, exercise);
@@ -241,12 +243,90 @@ function retrieveTrack(argsObj) {
 }
 
 
+function oauth(argsObj, callback) {
+  var formData = new FormData();
+  formData.set('client_id', '18858');
+  formData.set('client_secret', '2ba1aa8b33109cca2ccd936aec0ef46fd2fed6db');
+  formData.set('code', argsObj['code']);
+
+  _performRequest(
+    'POST', 'https://www.strava.com/oauth/token', formData,
+    function onSuccess(ev) {
+      var response = JSON.parse(ev.target.response);
+      var access_token = response['access_token'];
+      console.log('got access token ' + access_token + ' for ' + response['athlete']['email']);
+
+      chrome.storage.local.set({'oauth': response}, function() {
+        if (chrome.runtime.lastError) {
+          console.error(chrome.runtime.lastError);
+          return
+        }
+
+        console.log('saved oath data');
+        if (!!callback) {
+          callback(response);
+        }
+      });
+    }, null
+  );
+}
+
+
+function unoauth(argsObj, callback) {
+  chrome.storage.local.get('oauth', function(data) {
+    if (chrome.runtime.lastError) {
+      console.error(chrome.runtime.lastError);
+      return
+    }
+
+    function onUnauthorised(response, callback) {
+      chrome.storage.local.remove('oauth', function() {
+        if (chrome.runtime.lastError) {
+          console.error(chrome.runtime.lastError);
+          return
+        }
+
+        console.log('cleader oath data');
+        if (!!callback) {
+          callback(response);
+        }
+      });
+    }
+
+    var formData = new FormData();
+    formData.set('access_token', data['oauth']['access_token']);
+
+    _performRequest(
+      'POST', 'https://www.strava.com/oauth/deauthorize', formData,
+      function onSuccess(ev) {
+        var response = JSON.parse(ev.target.response);
+
+        onUnauthorised(response, callback);
+      }, function onFailure(ev) {
+        if (ev.target.status == 401) {
+          var response = JSON.parse(ev.target.response);
+
+          onUnauthorised(response, callback);
+        }
+      }
+    );
+  });
+};
+
+
 chrome.runtime.onMessage.addListener(
   function(request, sender, sendResponse) {
     if (request.action == 'queryTracks') {
       sendResponse(queryTracks(document));
     } else if (request.action == 'retrieveTrack') {
       retrieveTrack(request.args);
+    } else if (request.action == 'oauth') {
+      oauth(request.args, sendResponse);
+      // for async sendResponse
+      return true;
+    } else if (request.action == 'unoauth') {
+      unoauth(request.args, sendResponse);
+      return true;
     }
   }
 );

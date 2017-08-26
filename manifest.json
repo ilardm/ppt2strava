@@ -14,7 +14,10 @@
     },
     "permissions": [
         "activeTab",
-        "https://ajax.googleapis.com/"
+        "identity",
+        "storage",
+        "https://ajax.googleapis.com/",
+        "https://www.strava.com/*"
     ],
     "content_scripts": [
         {
